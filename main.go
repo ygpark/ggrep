@@ -13,13 +13,16 @@ import (
 const redColor = "\033[31m"
 const resetColor = "\033[0m"
 
-func highlightMatch(text string, pattern *regexp.Regexp) string {
+func highlightMatch(text string, pattern *regexp.Regexp, useColor bool) string {
+	if !useColor {
+		return text
+	}
 	return pattern.ReplaceAllStringFunc(text, func(match string) string {
 		return redColor + match + resetColor
 	})
 }
 
-func grepFile(pattern *regexp.Regexp, filename string, showLineNumbers, invertMatch, countOnly bool) {
+func grepFile(pattern *regexp.Regexp, filename string, showLineNumbers, invertMatch, countOnly, useColor bool) {
 	file, err := os.Open(filename)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "파일을 열 수 없습니다: %s\n", filename)
@@ -42,7 +45,7 @@ func grepFile(pattern *regexp.Regexp, filename string, showLineNumbers, invertMa
 		if matches {
 			matchCount++
 			if !countOnly {
-				highlightedLine := highlightMatch(line, pattern)
+				highlightedLine := highlightMatch(line, pattern, useColor)
 				if showLineNumbers {
 					fmt.Printf("%s:%d: %s\n", filename, lineNumber, highlightedLine)
 				} else {
@@ -58,7 +61,7 @@ func grepFile(pattern *regexp.Regexp, filename string, showLineNumbers, invertMa
 	}
 }
 
-func grepStdin(pattern *regexp.Regexp, invertMatch, countOnly bool) {
+func grepStdin(pattern *regexp.Regexp, invertMatch, countOnly, useColor bool) {
 	scanner := bufio.NewScanner(os.Stdin)
 	matchCount := 0
 
@@ -73,7 +76,7 @@ func grepStdin(pattern *regexp.Regexp, invertMatch, countOnly bool) {
 		if matches {
 			matchCount++
 			if !countOnly {
-				fmt.Println(highlightMatch(line, pattern))
+				fmt.Println(highlightMatch(line, pattern, useColor))
 			}
 		}
 	}
@@ -83,14 +86,14 @@ func grepStdin(pattern *regexp.Regexp, invertMatch, countOnly bool) {
 	}
 }
 
-func grepDirectory(pattern *regexp.Regexp, dir string, showLineNumbers, invertMatch, countOnly bool) {
+func grepDirectory(pattern *regexp.Regexp, dir string, showLineNumbers, invertMatch, countOnly, useColor bool) {
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "파일 접근 오류: %s\n", err)
 			return nil
 		}
 		if !info.IsDir() {
-			grepFile(pattern, path, showLineNumbers, invertMatch, countOnly)
+			grepFile(pattern, path, showLineNumbers, invertMatch, countOnly, useColor)
 		}
 		return nil
 	})
@@ -102,6 +105,8 @@ func main() {
 	invertMatch := flag.Bool("v", false, "매칭되지 않는 라인 출력")
 	countOnly := flag.Bool("c", false, "일치 개수만 출력")
 	recursive := flag.Bool("r", false, "디렉토리 재귀 검색")
+	useColor := flag.Bool("color", false, "컬러 출력")
+
 	flag.Parse()
 
 	if flag.NArg() < 1 {
@@ -121,7 +126,7 @@ func main() {
 	}
 
 	if flag.NArg() == 1 {
-		grepStdin(pattern, *invertMatch, *countOnly)
+		grepStdin(pattern, *invertMatch, *countOnly, *useColor)
 	} else {
 		for _, path := range flag.Args()[1:] {
 			fileInfo, err := os.Stat(path)
@@ -132,14 +137,13 @@ func main() {
 
 			if fileInfo.IsDir() {
 				if *recursive {
-					grepDirectory(pattern, path, *showLineNumbers, *invertMatch, *countOnly)
+					grepDirectory(pattern, path, *showLineNumbers, *invertMatch, *countOnly, *useColor)
 				} else {
 					fmt.Fprintf(os.Stderr, "디렉토리입니다 (옵션 -r 필요): %s\n", path)
 				}
 			} else {
-				grepFile(pattern, path, *showLineNumbers, *invertMatch, *countOnly)
+				grepFile(pattern, path, *showLineNumbers, *invertMatch, *countOnly, *useColor)
 			}
 		}
 	}
 }
-
